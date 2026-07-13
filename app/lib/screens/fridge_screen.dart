@@ -2,15 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../models/fridge_item.dart';
 import '../services/receipt_parser.dart';
+import '../services/recipe_service.dart';
 import '../state/fridge_store.dart';
 import 'receipt_input_screen.dart';
+import 'recipe_list_screen.dart';
 
 /// S3. 홈 = 비주얼 냉장고 (docs/screens.md)
 class FridgeScreen extends StatefulWidget {
-  const FridgeScreen({super.key, required this.store, required this.parser});
+  const FridgeScreen({
+    super.key,
+    required this.store,
+    required this.parser,
+    required this.recipeService,
+  });
 
   final FridgeStore store;
   final ReceiptParser parser;
+  final RecipeService recipeService;
 
   @override
   State<FridgeScreen> createState() => _FridgeScreenState();
@@ -43,7 +51,7 @@ class _FridgeScreenState extends State<FridgeScreen> {
       appBar: AppBar(
         title: const Text('내 냉장고'),
         actions: [
-          const _NaengpaBadge(count: 7),
+          _NaengpaBadge(count: widget.store.naengpaCount),
           IconButton(
             tooltip: _iconView ? '리스트로 보기' : '냉장고로 보기',
             icon: Icon(_iconView ? Icons.view_list : Icons.kitchen),
@@ -69,7 +77,14 @@ class _FridgeScreenState extends State<FridgeScreen> {
               backgroundColor: _redCount > 0 ? Colors.red.shade600 : null,
               minimumSize: const Size.fromHeight(52),
             ),
-            onPressed: () => _todo(context, '파먹기 레시피(S6)는 다음 단계에서 만들어요'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => RecipeListScreen(
+                  store: widget.store,
+                  recipeService: widget.recipeService,
+                ),
+              ),
+            ),
             child: Text(
               _redCount > 0 ? '🚨 빨간 애들 털어먹기 ($_redCount개)' : '오늘 뭐 해먹지?',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -78,12 +93,6 @@ class _FridgeScreenState extends State<FridgeScreen> {
         ),
       ),
     );
-  }
-
-  void _todo(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 

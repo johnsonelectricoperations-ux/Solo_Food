@@ -36,6 +36,17 @@ class FridgeItem {
     if (daysLeft <= _yellowThresholdDays) return Freshness.yellow;
     return Freshness.green;
   }
+
+  bool get isCountable => count > 1;
+
+  FridgeItem copyWith({double? amount, int? count}) => FridgeItem(
+        name: name,
+        emoji: emoji,
+        section: section,
+        amount: amount ?? this.amount,
+        count: count ?? this.count,
+        daysLeft: daysLeft,
+      );
 }
 
 /// 1단계 개발용 더미 데이터 (docs/screens.md 개발 순서 ①)
