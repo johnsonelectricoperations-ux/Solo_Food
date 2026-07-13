@@ -22,6 +22,9 @@ class FridgeStore extends ChangeNotifier {
   /// 이번 달 냉파 성공 횟수 (킬러 기능 5 최소형 — 아직 메모리 카운트)
   int naengpaCount = 0;
 
+  /// 버린 재료 횟수 — 냉파 리포트의 "얼마 버렸다" 데이터 (2차에서 리포트로 노출)
+  int discardCount = 0;
+
   List<FridgeItem> get items => List.unmodifiable(_items);
 
   void addAll(List<FridgeItem> newItems) {
@@ -61,5 +64,32 @@ class FridgeStore extends ChangeNotifier {
     if (naengpa) naengpaCount++;
     notifyListeners();
     return naengpa;
+  }
+
+  /// B2 보정: 다 먹음. 임박 재료였다면 냉파 성공으로 기록한다.
+  /// 반환값: 냉파 성공 여부.
+  bool markEaten(FridgeItem item) {
+    if (!_items.remove(item)) return false;
+    final naengpa = item.freshness != Freshness.green;
+    if (naengpa) naengpaCount++;
+    notifyListeners();
+    return naengpa;
+  }
+
+  /// B2 보정: 반 남음 (현재 양의 절반으로)
+  void markHalfLeft(FridgeItem item) {
+    final index = _items.indexOf(item);
+    if (index < 0) return;
+    _items[index] = item.isCountable
+        ? item.copyWith(count: (item.count / 2).ceil())
+        : item.copyWith(amount: item.amount / 2);
+    notifyListeners();
+  }
+
+  /// B2 보정: 버림. 죄책감 UX 금지 — 기록만 하고 혼내지 않는다.
+  void markDiscarded(FridgeItem item) {
+    if (!_items.remove(item)) return;
+    discardCount++;
+    notifyListeners();
   }
 }

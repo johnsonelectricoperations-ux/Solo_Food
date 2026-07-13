@@ -4,8 +4,10 @@ import '../models/fridge_item.dart';
 import '../services/receipt_parser.dart';
 import '../services/recipe_service.dart';
 import '../state/fridge_store.dart';
+import '../state/profile_store.dart';
 import 'receipt_input_screen.dart';
 import 'recipe_list_screen.dart';
+import 'settings_screen.dart';
 
 /// S3. 홈 = 비주얼 냉장고 (docs/screens.md)
 class FridgeScreen extends StatefulWidget {
@@ -14,11 +16,13 @@ class FridgeScreen extends StatefulWidget {
     required this.store,
     required this.parser,
     required this.recipeService,
+    required this.profileStore,
   });
 
   final FridgeStore store;
   final ReceiptParser parser;
   final RecipeService recipeService;
+  final ProfileStore profileStore;
 
   @override
   State<FridgeScreen> createState() => _FridgeScreenState();
@@ -45,6 +49,62 @@ class _FridgeScreenState extends State<FridgeScreen> {
 
   void _onStoreChanged() => setState(() {});
 
+  /// B2. 재료 보정 바텀시트 — 아이콘 길게 누르기 (docs/screens.md)
+  Future<void> _showAdjustSheet(FridgeItem item) async {
+    final store = widget.store;
+    final action = await showModalBottomSheet<_AdjustAction>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('${item.emoji} ${item.name}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              for (final (action, icon, label) in [
+                (_AdjustAction.eaten, Icons.check_circle_outline, '다 먹음'),
+                (_AdjustAction.halfLeft, Icons.contrast, '반 남음'),
+                (_AdjustAction.discarded, Icons.delete_outline, '버림'),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    icon: Icon(icon),
+                    label: Text(label, style: const TextStyle(fontSize: 15)),
+                    onPressed: () => Navigator.of(context).pop(action),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+
+    switch (action) {
+      case _AdjustAction.eaten:
+        final naengpa = store.markEaten(item);
+        _toast(naengpa ? '냉파 성공! 🔥 (이번 달 ${store.naengpaCount}회)' : '냉장고에서 비웠어요');
+      case _AdjustAction.halfLeft:
+        store.markHalfLeft(item);
+        _toast('${item.name}을(를) 절반으로 조정했어요');
+      case _AdjustAction.discarded:
+        store.markDiscarded(item);
+        // 죄책감 UX 금지 — 기록만 하고 혼내지 않는다
+        _toast('기록했어요. 다음엔 같이 구해봐요!');
+    }
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -57,9 +117,20 @@ class _FridgeScreenState extends State<FridgeScreen> {
             icon: Icon(_iconView ? Icons.view_list : Icons.kitchen),
             onPressed: () => setState(() => _iconView = !_iconView),
           ),
+          IconButton(
+            tooltip: '설정',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SettingsScreen(profileStore: widget.profileStore),
+              ),
+            ),
+          ),
         ],
       ),
-      body: _iconView ? _FridgeView(items: _items) : _ListView(items: _items),
+      body: _iconView
+          ? _FridgeView(items: _items, onItemLongPress: _showAdjustSheet)
+          : _ListView(items: _items, onItemLongPress: _showAdjustSheet),
       floatingActionButton: FloatingActionButton(
         tooltip: '재료 채우기',
         onPressed: () => Navigator.of(context).push(
@@ -113,11 +184,14 @@ class _NaengpaBadge extends StatelessWidget {
   }
 }
 
+enum _AdjustAction { eaten, halfLeft, discarded }
+
 /// 냉장고 단면 뷰: 냉장 선반 3칸 + 문짝 포켓 + 냉동 서랍
 class _FridgeView extends StatelessWidget {
-  const _FridgeView({required this.items});
+  const _FridgeView({required this.items, required this.onItemLongPress});
 
   final List<FridgeItem> items;
+  final ValueChanged<FridgeItem> onItemLongPress;
 
   static const _sections = [
     (FridgeSection.shelf1, '냉장 1칸'),
@@ -137,6 +211,7 @@ class _FridgeView extends StatelessWidget {
             label: label,
             isFreezer: section == FridgeSection.freezer,
             items: items.where((i) => i.section == section).toList(),
+            onItemLongPress: onItemLongPress,
           ),
       ],
     );
@@ -144,10 +219,16 @@ class _FridgeView extends StatelessWidget {
 }
 
 class _ShelfRow extends StatelessWidget {
-  const _ShelfRow({required this.label, required this.items, this.isFreezer = false});
+  const _ShelfRow({
+    required this.label,
+    required this.items,
+    required this.onItemLongPress,
+    this.isFreezer = false,
+  });
 
   final String label;
   final List<FridgeItem> items;
+  final ValueChanged<FridgeItem> onItemLongPress;
   final bool isFreezer;
 
   @override
@@ -171,7 +252,13 @@ class _ShelfRow extends StatelessWidget {
             Wrap(
               spacing: 10,
               runSpacing: 10,
-              children: [for (final item in items) _ItemTile(item: item)],
+              children: [
+                for (final item in items)
+                  GestureDetector(
+                    onLongPress: () => onItemLongPress(item),
+                    child: _ItemTile(item: item),
+                  ),
+              ],
             ),
         ],
       ),
@@ -246,9 +333,10 @@ class _ItemTile extends StatelessWidget {
 
 /// 리스트 뷰: 검색·정확한 관리용 (아이콘 뷰의 검색성 보완)
 class _ListView extends StatelessWidget {
-  const _ListView({required this.items});
+  const _ListView({required this.items, required this.onItemLongPress});
 
   final List<FridgeItem> items;
+  final ValueChanged<FridgeItem> onItemLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -264,6 +352,7 @@ class _ListView extends StatelessWidget {
           Freshness.green => Colors.green,
         };
         return ListTile(
+          onLongPress: () => onItemLongPress(item),
           leading: Text(item.emoji, style: const TextStyle(fontSize: 24)),
           title: Text(item.name),
           subtitle: Text('남은 양 ${(item.amount * 100).round()}%'

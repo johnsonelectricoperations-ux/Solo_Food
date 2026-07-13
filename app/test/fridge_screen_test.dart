@@ -2,15 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:solo_food/main.dart';
 import 'package:solo_food/models/fridge_item.dart';
+import 'package:solo_food/models/user_profile.dart';
+import 'package:solo_food/services/hard_constraint_guard.dart';
 import 'package:solo_food/services/receipt_parser.dart';
 import 'package:solo_food/services/recipe_service.dart';
 import 'package:solo_food/state/fridge_store.dart';
+import 'package:solo_food/state/profile_store.dart';
 
-Widget _app(FridgeStore store) => SoloFoodApp(
-      store: store,
-      parser: MockReceiptParser(),
-      recipeService: MockRecipeService(),
-    );
+ProfileStore _doneProfile({Set<String> allergens = const {}, DietType diet = DietType.normal}) =>
+    ProfileStore()..save(UserProfile(allergens: allergens, dietType: diet));
+
+Widget _app(FridgeStore store, {ProfileStore? profileStore}) {
+  final profiles = profileStore ?? _doneProfile();
+  return SoloFoodApp(
+    store: store,
+    profileStore: profiles,
+    parser: MockReceiptParser(),
+    recipeService: HardConstraintGuard(inner: MockRecipeService(), profileStore: profiles),
+  );
+}
 
 void main() {
   testWidgets('냉장고 홈에 더미 재료와 신호등 버튼이 보인다', (tester) async {
@@ -126,6 +136,95 @@ void main() {
     // S3로 복귀했고 냉장고에 들어갔다
     expect(find.text('내 냉장고'), findsOneWidget);
     expect(store.items.map((i) => i.name), containsAll(['애호박', '우유']));
+  });
+
+  group('하드 제약 3겹 필터 (최종 검사)', () {
+    final fridge = [
+      const FridgeItem(name: '두부', emoji: 'x', section: FridgeSection.shelf1, daysLeft: 0),
+      const FridgeItem(name: '계란', emoji: 'x', section: FridgeSection.shelf1, count: 6, daysLeft: 12),
+      const FridgeItem(name: '대파', emoji: 'x', section: FridgeSection.shelf3, daysLeft: 2),
+      const FridgeItem(name: '양파', emoji: 'x', section: FridgeSection.shelf3, daysLeft: 14),
+      const FridgeItem(name: '김치', emoji: 'x', section: FridgeSection.shelf2, daysLeft: 30),
+      const FridgeItem(name: '삼겹살', emoji: 'x', section: FridgeSection.freezer, daysLeft: 60),
+    ];
+
+    test('계란 알레르기면 계란 레시피가 절대 나오지 않는다', () async {
+      final guard = HardConstraintGuard(
+        inner: MockRecipeService(),
+        profileStore: _doneProfile(allergens: {'계란'}),
+      );
+      final matches = await guard.recommend(fridge);
+
+      expect(matches, isNotEmpty);
+      for (final m in matches) {
+        expect(m.recipe.ingredients.map((i) => i.name), isNot(contains('계란')));
+      }
+    });
+
+    test('비건이면 고기·계란 레시피가 전부 걸러진다', () async {
+      final guard = HardConstraintGuard(
+        inner: MockRecipeService(),
+        profileStore: _doneProfile(diet: DietType.vegan),
+      );
+      final matches = await guard.recommend(fridge);
+
+      for (final m in matches) {
+        for (final ing in m.recipe.ingredients) {
+          expect(UserProfile.veganBanned.contains(ing.name), isFalse,
+              reason: '${m.recipe.name}에 동물성 재료 ${ing.name}이 남아 있다');
+        }
+      }
+    });
+  });
+
+  group('FridgeStore B2 보정', () {
+    const urgentTofu =
+        FridgeItem(name: '두부', emoji: 'x', section: FridgeSection.shelf1, daysLeft: 0);
+    const eggs =
+        FridgeItem(name: '계란', emoji: 'x', section: FridgeSection.shelf1, count: 6, daysLeft: 12);
+
+    test('다 먹음: 제거 + 임박이면 냉파 성공', () {
+      final store = FridgeStore(initial: [urgentTofu]);
+      expect(store.markEaten(urgentTofu), isTrue);
+      expect(store.naengpaCount, 1);
+      expect(store.items, isEmpty);
+    });
+
+    test('반 남음: 개수는 절반 올림, 양은 절반', () {
+      final store = FridgeStore(initial: [urgentTofu, eggs]);
+      store.markHalfLeft(eggs);
+      store.markHalfLeft(urgentTofu);
+      expect(store.items[1].count, 3);
+      expect(store.items[0].amount, 0.5);
+    });
+
+    test('버림: 제거 + 버림 카운트 (냉파 아님)', () {
+      final store = FridgeStore(initial: [urgentTofu]);
+      store.markDiscarded(urgentTofu);
+      expect(store.items, isEmpty);
+      expect(store.discardCount, 1);
+      expect(store.naengpaCount, 0);
+    });
+  });
+
+  testWidgets('첫 실행 온보딩: 알레르기 → 식단 유형 → 홈 진입', (tester) async {
+    final profiles = ProfileStore();
+    await tester.pumpWidget(_app(FridgeStore(), profileStore: profiles));
+
+    // S1: 알레르기 선택
+    expect(find.text('알레르기나 절대 피해야 할 재료가 있나요?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilterChip, '계란'));
+    await tester.pump();
+    await tester.tap(find.text('1개 선택하고 다음으로'));
+    await tester.pumpAndSettle();
+
+    // S2: 식단 유형 선택 → 홈
+    await tester.tap(find.text('비건'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('내 냉장고'), findsOneWidget);
+    expect(profiles.profile!.allergens, {'계란'});
+    expect(profiles.profile!.dietType, DietType.vegan);
   });
 
   testWidgets('소비 루프: 레시피 → 해먹었어요 → 차감·냉파 성공', (tester) async {
