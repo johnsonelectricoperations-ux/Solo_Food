@@ -16,12 +16,12 @@ class ParsedItem {
   int count;
   int daysLeft;
 
-  FridgeItem toFridgeItem() => FridgeItem(
+  FridgeItem toFridgeItem() => FridgeItem.expiringIn(
+        daysLeft,
         name: name,
         emoji: emoji,
         section: section,
         count: count,
-        daysLeft: daysLeft,
       );
 }
 

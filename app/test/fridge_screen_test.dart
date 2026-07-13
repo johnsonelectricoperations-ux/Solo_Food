@@ -34,9 +34,9 @@ void main() {
   });
 
   test('신선도 신호등 경계값', () {
-    const red = FridgeItem(name: 't', emoji: 'x', section: FridgeSection.shelf1, daysLeft: 0);
-    const yellow = FridgeItem(name: 't', emoji: 'x', section: FridgeSection.shelf1, daysLeft: 3);
-    const green = FridgeItem(name: 't', emoji: 'x', section: FridgeSection.shelf1, daysLeft: 4);
+    final red = FridgeItem.expiringIn(0, name: 't', emoji: 'x', section: FridgeSection.shelf1);
+    final yellow = FridgeItem.expiringIn(3, name: 't', emoji: 'x', section: FridgeSection.shelf1);
+    final green = FridgeItem.expiringIn(4, name: 't', emoji: 'x', section: FridgeSection.shelf1);
 
     expect(red.freshness, Freshness.red);
     expect(yellow.freshness, Freshness.yellow);
@@ -62,10 +62,10 @@ void main() {
   group('MockRecipeService', () {
     test('빨강 재료를 구하는 레시피가 최상단에 온다', () async {
       final fridge = [
-        const FridgeItem(name: '두부', emoji: 'x', section: FridgeSection.shelf1, daysLeft: 0),
-        const FridgeItem(name: '양파', emoji: 'x', section: FridgeSection.shelf3, daysLeft: 14),
-        const FridgeItem(name: '계란', emoji: 'x', section: FridgeSection.shelf1, count: 6, daysLeft: 12),
-        const FridgeItem(name: '당근', emoji: 'x', section: FridgeSection.shelf3, daysLeft: 12),
+        FridgeItem.expiringIn(0, name: '두부', emoji: 'x', section: FridgeSection.shelf1),
+        FridgeItem.expiringIn(14, name: '양파', emoji: 'x', section: FridgeSection.shelf3),
+        FridgeItem.expiringIn(12, name: '계란', emoji: 'x', section: FridgeSection.shelf1, count: 6),
+        FridgeItem.expiringIn(12, name: '당근', emoji: 'x', section: FridgeSection.shelf3),
       ];
       final matches = await MockRecipeService().recommend(fridge);
 
@@ -76,7 +76,7 @@ void main() {
 
     test('겹치는 재료가 2개 미만이면 추천하지 않는다', () async {
       final fridge = [
-        const FridgeItem(name: '우유', emoji: 'x', section: FridgeSection.door, daysLeft: 5),
+        FridgeItem.expiringIn(5, name: '우유', emoji: 'x', section: FridgeSection.door),
       ];
       final matches = await MockRecipeService().recommend(fridge);
       expect(matches, isEmpty);
@@ -85,13 +85,13 @@ void main() {
 
   group('FridgeStore.applyDeductions', () {
     test('양 차감·소진 제거·냉파 카운트가 동작한다', () {
-      const tofu = FridgeItem(name: '두부', emoji: 'x', section: FridgeSection.shelf1, amount: 0.5, daysLeft: 0);
-      const eggs = FridgeItem(name: '계란', emoji: 'x', section: FridgeSection.shelf1, count: 10, daysLeft: 12);
+      final tofu = FridgeItem.expiringIn(0, name: '두부', emoji: 'x', section: FridgeSection.shelf1, amount: 0.5);
+      final eggs = FridgeItem.expiringIn(12, name: '계란', emoji: 'x', section: FridgeSection.shelf1, count: 10);
       final store = FridgeStore(initial: [tofu, eggs]);
 
       final naengpa = store.applyDeductions([
-        const Deduction(tofu, 0.5), // 남은 0.5를 다 씀 → 소진 제거
-        const Deduction(eggs, 0.5), // 10개 중 5개 사용
+        Deduction(tofu, 0.5), // 남은 0.5를 다 씀 → 소진 제거
+        Deduction(eggs, 0.5), // 10개 중 5개 사용
       ]);
 
       expect(naengpa, isTrue); // 두부가 빨강이었으므로 냉파 성공
@@ -101,10 +101,10 @@ void main() {
     });
 
     test('안 씀(0)만 있으면 냉파가 아니다', () {
-      const tofu = FridgeItem(name: '두부', emoji: 'x', section: FridgeSection.shelf1, daysLeft: 0);
+      final tofu = FridgeItem.expiringIn(0, name: '두부', emoji: 'x', section: FridgeSection.shelf1);
       final store = FridgeStore(initial: [tofu]);
 
-      final naengpa = store.applyDeductions([const Deduction(tofu, 0)]);
+      final naengpa = store.applyDeductions([Deduction(tofu, 0)]);
 
       expect(naengpa, isFalse);
       expect(store.naengpaCount, 0);
@@ -140,12 +140,12 @@ void main() {
 
   group('하드 제약 3겹 필터 (최종 검사)', () {
     final fridge = [
-      const FridgeItem(name: '두부', emoji: 'x', section: FridgeSection.shelf1, daysLeft: 0),
-      const FridgeItem(name: '계란', emoji: 'x', section: FridgeSection.shelf1, count: 6, daysLeft: 12),
-      const FridgeItem(name: '대파', emoji: 'x', section: FridgeSection.shelf3, daysLeft: 2),
-      const FridgeItem(name: '양파', emoji: 'x', section: FridgeSection.shelf3, daysLeft: 14),
-      const FridgeItem(name: '김치', emoji: 'x', section: FridgeSection.shelf2, daysLeft: 30),
-      const FridgeItem(name: '삼겹살', emoji: 'x', section: FridgeSection.freezer, daysLeft: 60),
+      FridgeItem.expiringIn(0, name: '두부', emoji: 'x', section: FridgeSection.shelf1),
+      FridgeItem.expiringIn(12, name: '계란', emoji: 'x', section: FridgeSection.shelf1, count: 6),
+      FridgeItem.expiringIn(2, name: '대파', emoji: 'x', section: FridgeSection.shelf3),
+      FridgeItem.expiringIn(14, name: '양파', emoji: 'x', section: FridgeSection.shelf3),
+      FridgeItem.expiringIn(30, name: '김치', emoji: 'x', section: FridgeSection.shelf2),
+      FridgeItem.expiringIn(60, name: '삼겹살', emoji: 'x', section: FridgeSection.freezer),
     ];
 
     test('계란 알레르기면 계란 레시피가 절대 나오지 않는다', () async {
@@ -178,10 +178,8 @@ void main() {
   });
 
   group('FridgeStore B2 보정', () {
-    const urgentTofu =
-        FridgeItem(name: '두부', emoji: 'x', section: FridgeSection.shelf1, daysLeft: 0);
-    const eggs =
-        FridgeItem(name: '계란', emoji: 'x', section: FridgeSection.shelf1, count: 6, daysLeft: 12);
+    final urgentTofu = FridgeItem.expiringIn(0, name: '두부', emoji: 'x', section: FridgeSection.shelf1);
+    final eggs = FridgeItem.expiringIn(12, name: '계란', emoji: 'x', section: FridgeSection.shelf1, count: 6);
 
     test('다 먹음: 제거 + 임박이면 냉파 성공', () {
       final store = FridgeStore(initial: [urgentTofu]);

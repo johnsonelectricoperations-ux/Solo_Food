@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/fridge_item.dart';
+import '../services/local_storage.dart';
 
 /// 차감 1건: 어떤 품목을 얼마나(비율) 썼는가
 class Deduction {
@@ -13,13 +14,25 @@ class Deduction {
 }
 
 /// 앱 전체가 공유하는 냉장고 상태.
-/// 지금은 메모리에만 저장 — Supabase 연결 시 이 클래스 내부만 교체하면 된다.
+/// 변경 시마다 기기 로컬(LocalStorage)에 저장한다. Supabase 연동 시 저장부만 교체.
 class FridgeStore extends ChangeNotifier {
-  FridgeStore({List<FridgeItem>? initial}) : _items = List.of(initial ?? dummyFridgeItems);
+  FridgeStore({List<FridgeItem>? initial, LocalStorage? storage}) : _storage = storage {
+    final saved = storage?.loadFridge();
+    if (initial != null) {
+      _items = List.of(initial);
+    } else if (saved != null) {
+      _items = List.of(saved.items);
+      naengpaCount = saved.naengpaCount;
+      discardCount = saved.discardCount;
+    } else {
+      _items = dummyFridgeItems(); // 첫 실행 데모용 — 실연동 시 빈 냉장고로 교체 예정
+    }
+  }
 
-  final List<FridgeItem> _items;
+  final LocalStorage? _storage;
+  late List<FridgeItem> _items;
 
-  /// 이번 달 냉파 성공 횟수 (킬러 기능 5 최소형 — 아직 메모리 카운트)
+  /// 이번 달 냉파 성공 횟수 (킬러 기능 5 최소형)
   int naengpaCount = 0;
 
   /// 버린 재료 횟수 — 냉파 리포트의 "얼마 버렸다" 데이터 (2차에서 리포트로 노출)
@@ -27,9 +40,14 @@ class FridgeStore extends ChangeNotifier {
 
   List<FridgeItem> get items => List.unmodifiable(_items);
 
+  void _commit() {
+    _storage?.saveFridge(_items, naengpaCount: naengpaCount, discardCount: discardCount);
+    notifyListeners();
+  }
+
   void addAll(List<FridgeItem> newItems) {
     _items.addAll(newItems);
-    notifyListeners();
+    _commit();
   }
 
   /// 차감을 적용하고, 임박(빨강/노랑) 재료를 소진했으면 냉파 성공으로 기록한다.
@@ -62,7 +80,7 @@ class FridgeStore extends ChangeNotifier {
     }
 
     if (naengpa) naengpaCount++;
-    notifyListeners();
+    _commit();
     return naengpa;
   }
 
@@ -72,7 +90,7 @@ class FridgeStore extends ChangeNotifier {
     if (!_items.remove(item)) return false;
     final naengpa = item.freshness != Freshness.green;
     if (naengpa) naengpaCount++;
-    notifyListeners();
+    _commit();
     return naengpa;
   }
 
@@ -83,13 +101,13 @@ class FridgeStore extends ChangeNotifier {
     _items[index] = item.isCountable
         ? item.copyWith(count: (item.count / 2).ceil())
         : item.copyWith(amount: item.amount / 2);
-    notifyListeners();
+    _commit();
   }
 
   /// B2 보정: 버림. 죄책감 UX 금지 — 기록만 하고 혼내지 않는다.
   void markDiscarded(FridgeItem item) {
     if (!_items.remove(item)) return;
     discardCount++;
-    notifyListeners();
+    _commit();
   }
 }
