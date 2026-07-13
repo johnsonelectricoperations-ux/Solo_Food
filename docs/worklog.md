@@ -1,5 +1,16 @@
 # 작업 기록 (worklog)
 
+## 2026-07-13 (6) — 실연동 준비 (서버 뼈대)
+- **완료:**
+  - APK 클라우드 빌드 성공 확인 (GitHub Actions run #1, 테스트 포함 6분) — Actions 탭 → Artifacts → solo-food-apk
+  - `supabase/schema.sql`: profiles·fridge_items 테이블 + RLS(유저별 격리)
+  - `supabase/functions/parse-receipt/index.ts`: 비전 LLM 영수증 파싱 Edge Function (구조화 출력, 앱의 MockReceiptParser와 동일한 응답 형태)
+- **다음 할 일 (유저 계정 생성 후):**
+  1. supabase.com 프로젝트 생성 → SQL Editor에 schema.sql 실행
+  2. `supabase functions deploy parse-receipt` + `supabase secrets set ANTHROPIC_API_KEY=...`
+  3. 앱: supabase_flutter 추가, S0 로그인, LocalStorage→Supabase 동기화, MockReceiptParser→HTTP 호출 교체
+- **주의:** LLM 모델은 우선 claude-opus-4-8로 두었고, 비용 최적화가 필요하면 claude-haiku-4-5로 A/B 예정 (함수 상단 MODEL 상수)
+
 ## 2026-07-13 (5) — 로컬 영속화 + 유통기한 날짜화
 - **목표:** 앱을 껐다 켜도 데이터 유지 (Supabase 전 단계 다리)
 - **완료:**
