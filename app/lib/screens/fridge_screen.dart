@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../models/fridge_item.dart';
+import '../services/receipt_parser.dart';
+import '../state/fridge_store.dart';
+import 'receipt_input_screen.dart';
 
 /// S3. 홈 = 비주얼 냉장고 (docs/screens.md)
-/// 1단계 골격: 더미 데이터로 냉장고 단면 + 신호등 + 아이콘/리스트 토글까지만.
 class FridgeScreen extends StatefulWidget {
-  const FridgeScreen({super.key});
+  const FridgeScreen({super.key, required this.store, required this.parser});
+
+  final FridgeStore store;
+  final ReceiptParser parser;
 
   @override
   State<FridgeScreen> createState() => _FridgeScreenState();
@@ -13,9 +18,24 @@ class FridgeScreen extends StatefulWidget {
 
 class _FridgeScreenState extends State<FridgeScreen> {
   bool _iconView = true;
-  final List<FridgeItem> _items = List.of(dummyFridgeItems);
+
+  List<FridgeItem> get _items => widget.store.items;
 
   int get _redCount => _items.where((i) => i.freshness == Freshness.red).length;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.store.addListener(_onStoreChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.store.removeListener(_onStoreChanged);
+    super.dispose();
+  }
+
+  void _onStoreChanged() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
@@ -33,8 +53,12 @@ class _FridgeScreenState extends State<FridgeScreen> {
       ),
       body: _iconView ? _FridgeView(items: _items) : _ListView(items: _items),
       floatingActionButton: FloatingActionButton(
-        tooltip: '영수증 찍기',
-        onPressed: () => _todo(context, '영수증 촬영(S4)은 다음 단계에서 만들어요'),
+        tooltip: '재료 채우기',
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ReceiptInputScreen(store: widget.store, parser: widget.parser),
+          ),
+        ),
         child: const Icon(Icons.photo_camera),
       ),
       bottomNavigationBar: SafeArea(
