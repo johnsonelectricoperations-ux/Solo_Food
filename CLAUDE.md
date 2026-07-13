@@ -125,17 +125,30 @@
 쉽게 말하면 아래 3가지 질문에 대한 답을 적는 곳이다:
 
 **① 이 프로젝트는 뭘로 만들었나?**
-- (예: "파이썬으로 만든 웹사이트" / "자바스크립트로 만든 게임")
-- 답: _아직 없음_
+- 답: **Flutter(Dart)로 만드는 1인 가구 식재료 관리 앱** (Zero-Waste Kitchen).
+  - 앱 코드: `app/` / 기획서: `idea.md` / 화면 설계: `docs/screens.md` / 작업 기록: `docs/worklog.md`
+  - 백엔드는 Supabase 예정 (아직 연결 안 됨). 기술 스택 근거는 `idea.md` 9번 참고.
 
 **② 어떻게 실행해서 눈으로 확인하나?**
-- 코드를 고친 뒤 "잘 되는지 보는 방법"이다.
-- (예: 터미널에 `npm run dev` 입력 → 브라우저에서 열어보기)
-- 답: _아직 없음_
+- 답: Flutter SDK가 필요하다. 이 원격 환경에는 기본 설치가 안 돼 있으므로 세션마다 먼저:
+  ```bash
+  # Flutter 설치 (약 2분, 이미 /opt/flutter가 있으면 생략)
+  cd /opt && curl -sSL -o f.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.44.6-stable.tar.xz && tar xf f.tar.xz && rm f.tar.xz
+  git config --global --add safe.directory /opt/flutter && export BOT=true
+  ```
+  그 다음 검증·확인:
+  ```bash
+  cd app && /opt/flutter/bin/flutter analyze && /opt/flutter/bin/flutter test   # 코드 검증
+  /opt/flutter/bin/flutter build web                                            # 눈으로 확인용 웹 빌드
+  (cd build/web && python3 -m http.server 8787 &)                               # 서빙 후 스크린샷으로 확인
+  ```
+  - 웹 미리보기는 `app/web/flutter_bootstrap.js`가 canvaskit을 로컬에서 로드하게 해둬서 프록시 환경에서도 뜬다. **이 파일을 지우면 웹 미리보기가 하얗게 나온다.**
+  - 스크린샷: scratchpad에서 `playwright-core`로 `http://127.0.0.1:8787` 캡처 (뷰포트 412×915).
+  - 미리보기에서 **이모지는 ☒로 깨져 보이는 게 정상** (컨테이너에 이모지 폰트 없음). 실제 안드로이드 기기에서는 정상 표시된다.
 
 **③ 절대 건드리면 안 되는 것이 있나?**
-- (예: "비밀번호 파일은 수정 금지" / "데이터 폴더는 삭제 금지")
-- 답: _아직 없음_
+- `app/assets/fonts/NotoSansKR.ttf` — 한글 렌더링용 번들 폰트(OFL 라이선스). 삭제하면 한글이 깨진다.
+- `idea.md`, `docs/screens.md` — 기획의 기준 문서. 코드 작업 중 임의 수정 금지 (변경은 사용자와 논의 후).
 
 > 💡 **왜 적어두나?** Claude는 매 세션 이 파일을 읽는다.
 > 여기에 답이 적혀 있으면, 매번 다시 설명하지 않아도

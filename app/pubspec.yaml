@@ -1,0 +1,25 @@
+name: solo_food
+description: "Zero-Waste Kitchen: 1인 가구 AI 식단·식재료 관리 앱"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # 웹 미리보기·기기 간 일관된 한글 렌더링을 위해 번들 (CDN 폰트 페치에 의존하지 않기 위함)
+  fonts:
+    - family: NotoSansKR
+      fonts:
+        - asset: assets/fonts/NotoSansKR.ttf
