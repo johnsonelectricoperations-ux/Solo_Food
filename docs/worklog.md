@@ -1,5 +1,20 @@
 # 작업 기록 (worklog)
 
+## 2026-07-13 (7) — Supabase 실연동 (앱 쪽)
+- **완료:**
+  - `config.dart`: 유저의 Supabase URL + publishable key (공개용 키라 커밋 안전)
+  - S0 로그인 화면: 이메일 OTP(6자리 코드) 방식 — 딥링크 설정 불필요
+  - main을 인증 게이트로 재구성: Supabase 초기화 → 세션 없으면 S0 → 있으면 클라우드에서 프로필·냉장고 로드 → 온보딩/홈
+  - `AppStorage` 인터페이스로 저장 계층 추상화: LocalStorage(비로그인·테스트) / SupabaseStorage(클라우드, RLS)
+  - `SupabaseReceiptParser`: parse-receipt Edge Function 호출 (사진=image_picker 카메라, 텍스트). 서버 실패 시 Mock으로 폴백(FallbackReceiptParser)
+  - 설정에 로그아웃 추가. 신규 유저는 빈 냉장고로 시작(더미 데이터는 테스트 전용)
+  - 검증: analyze 0건, 테스트 16건 통과, 웹에서 S0 렌더링 확인
+- **유저가 해야 할 일 (다음 세션 시작 전 확인):**
+  1. Supabase SQL Editor에서 `supabase/schema.sql` 실행
+  2. 인증 이메일 템플릿(Magic Link)에 `{{ .Token }}` 추가 (6자리 코드 발송용)
+  3. 대시보드에서 Edge Function `parse-receipt` 배포 + `ANTHROPIC_API_KEY` 시크릿 등록
+- **주의:** 스키마에 `onboarding_done` 컬럼 추가됨 — 이미 실행했다면 schema.sql 재실행 필요
+
 ## 2026-07-13 (6) — 실연동 준비 (서버 뼈대)
 - **완료:**
   - APK 클라우드 빌드 성공 확인 (GitHub Actions run #1, 테스트 포함 6분) — Actions 탭 → Artifacts → solo-food-apk

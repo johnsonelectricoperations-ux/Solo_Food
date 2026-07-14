@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'config.dart';
+import 'models/user_profile.dart';
 import 'screens/fridge_screen.dart';
+import 'screens/login_screen.dart';
 import 'screens/onboarding_screens.dart';
+import 'services/app_storage.dart';
 import 'services/hard_constraint_guard.dart';
-import 'services/local_storage.dart';
 import 'services/receipt_parser.dart';
 import 'services/recipe_service.dart';
+import 'services/supabase_receipt_parser.dart';
+import 'services/supabase_storage.dart';
 import 'state/fridge_store.dart';
 import 'state/profile_store.dart';
 
@@ -13,8 +19,8 @@ void main() {
   runApp(const BootstrapApp());
 }
 
-/// 로컬 저장소를 연 뒤 본 앱을 띄운다.
-/// (main을 async로 만들면 웹에서 첫 프레임이 붙지 않는 문제가 있어 위젯 안에서 로드)
+/// Supabase 초기화 → 로그인 게이트 → 데이터 로드 → 본 앱.
+/// (main을 async로 만들면 웹에서 첫 프레임이 붙지 않는 문제가 있어 위젯 안에서 초기화)
 class BootstrapApp extends StatefulWidget {
   const BootstrapApp({super.key});
 
@@ -23,44 +29,108 @@ class BootstrapApp extends StatefulWidget {
 }
 
 class _BootstrapAppState extends State<BootstrapApp> {
-  late final Future<LocalStorage?> _storageFuture = _open();
+  late final Future<SupabaseClient> _initFuture = _init();
 
-  Future<LocalStorage?> _open() async {
-    try {
-      return await LocalStorage.open();
-    } catch (e) {
-      // 저장소를 못 열어도 앱은 떠야 한다 (메모리 모드로 동작)
-      debugPrint('LocalStorage.open 실패: $e');
-      return null;
-    }
+  Future<SupabaseClient> _init() async {
+    await Supabase.initialize(url: supabaseUrl, publishableKey: supabasePublishableKey);
+    return Supabase.instance.client;
   }
+
+  static const _theme = _AppTheme();
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
-      future: _storageFuture,
+      future: _initFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const MaterialApp(
-            home: Scaffold(body: Center(child: CircularProgressIndicator())),
-          );
+          return _theme.wrap(const Scaffold(body: Center(child: CircularProgressIndicator())));
         }
-        final storage = snapshot.data;
-        final profileStore = ProfileStore(storage: storage);
+        final client = snapshot.data!;
+        // 로그인 상태가 바뀌면(로그인/로그아웃) 화면을 전환한다
+        return StreamBuilder<AuthState>(
+          stream: client.auth.onAuthStateChange,
+          builder: (context, _) {
+            final session = client.auth.currentSession;
+            if (session == null) {
+              return _theme.wrap(const LoginScreen());
+            }
+            return _LoadedApp(key: ValueKey(session.user.id), client: client);
+          },
+        );
+      },
+    );
+  }
+}
+
+/// 로그인 이후: 클라우드에서 프로필·냉장고를 읽어 앱을 띄운다.
+class _LoadedApp extends StatefulWidget {
+  const _LoadedApp({super.key, required this.client});
+
+  final SupabaseClient client;
+
+  @override
+  State<_LoadedApp> createState() => _LoadedAppState();
+}
+
+class _LoadedAppState extends State<_LoadedApp> {
+  late final SupabaseStorage _storage = SupabaseStorage(widget.client);
+  late final Future<(UserProfile?, FridgeData?)> _loadFuture = _load();
+
+  Future<(UserProfile?, FridgeData?)> _load() async {
+    final profile = await _storage.loadProfile();
+    final fridge = await _storage.loadFridge();
+    return (profile, fridge);
+  }
+
+  static const _theme = _AppTheme();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: _loadFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return _theme.wrap(const Scaffold(body: Center(child: CircularProgressIndicator())));
+        }
+        final (profile, fridge) = snapshot.data!;
+        final profileStore = ProfileStore(initial: profile, storage: _storage);
+        final store = FridgeStore(
+          initial: fridge?.items ?? const [], // 신규 유저는 빈 냉장고에서 시작
+          naengpaCount: fridge?.naengpaCount ?? 0,
+          discardCount: fridge?.discardCount ?? 0,
+          storage: _storage,
+        );
         return SoloFoodApp(
-          store: FridgeStore(storage: storage),
+          store: store,
           profileStore: profileStore,
-          // 두 서비스 모두 Supabase Edge Function(LLM) 연동 시 교체.
-          // HardConstraintGuard는 어떤 구현으로 바뀌어도 유지된다 (3겹 필터의 최종 검사).
-          parser: MockReceiptParser(),
+          // 서버(비전 LLM) 인식 실패 시 임시 인식기로 폴백
+          parser: FallbackReceiptParser(
+            primary: SupabaseReceiptParser(widget.client),
+            fallback: MockReceiptParser(),
+          ),
           recipeService: HardConstraintGuard(
-            inner: MockRecipeService(),
+            inner: MockRecipeService(), // 레시피 엔진 실연동은 다음 단계
             profileStore: profileStore,
           ),
         );
       },
     );
   }
+}
+
+class _AppTheme {
+  const _AppTheme();
+
+  Widget wrap(Widget home) => MaterialApp(
+        title: 'Zero-Waste Kitchen',
+        theme: ThemeData(
+          colorSchemeSeed: Colors.green,
+          useMaterial3: true,
+          fontFamily: 'NotoSansKR',
+        ),
+        home: home,
+      );
 }
 
 class SoloFoodApp extends StatelessWidget {

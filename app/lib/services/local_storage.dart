@@ -4,10 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/fridge_item.dart';
 import '../models/user_profile.dart';
+import 'app_storage.dart';
 
-/// 기기 로컬 저장 (Supabase 연동 전까지의 영속화 다리).
-/// 저장 대상: 냉장고 품목, 냉파/버림 카운트, 취향 프로필.
-class LocalStorage {
+/// 기기 로컬 저장 (로그인 전/오프라인 폴백).
+class LocalStorage implements AppStorage {
   LocalStorage(this._prefs);
 
   static Future<LocalStorage> open() async =>
@@ -18,7 +18,9 @@ class LocalStorage {
   static const _fridgeKey = 'fridge.v1';
   static const _profileKey = 'profile.v1';
 
-  Future<void> saveFridge(List<FridgeItem> items, {required int naengpaCount, required int discardCount}) async {
+  @override
+  Future<void> saveFridge(List<FridgeItem> items,
+      {required int naengpaCount, required int discardCount}) async {
     await _prefs.setString(
       _fridgeKey,
       jsonEncode({
@@ -29,7 +31,8 @@ class LocalStorage {
     );
   }
 
-  ({List<FridgeItem> items, int naengpaCount, int discardCount})? loadFridge() {
+  @override
+  Future<FridgeData?> loadFridge() async {
     final raw = _prefs.getString(_fridgeKey);
     if (raw == null) return null;
     final json = jsonDecode(raw) as Map<String, dynamic>;
@@ -42,6 +45,7 @@ class LocalStorage {
     );
   }
 
+  @override
   Future<void> saveProfile(UserProfile profile) async {
     await _prefs.setString(
       _profileKey,
@@ -52,7 +56,8 @@ class LocalStorage {
     );
   }
 
-  UserProfile? loadProfile() {
+  @override
+  Future<UserProfile?> loadProfile() async {
     final raw = _prefs.getString(_profileKey);
     if (raw == null) return null;
     final json = jsonDecode(raw) as Map<String, dynamic>;

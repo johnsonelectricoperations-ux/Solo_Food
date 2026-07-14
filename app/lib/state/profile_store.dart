@@ -1,16 +1,17 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/user_profile.dart';
-import '../services/local_storage.dart';
+import '../services/app_storage.dart';
 
 /// 취향 프로필 상태.
-/// 변경 시마다 기기 로컬(LocalStorage)에 저장한다. Supabase 연동 시 저장부만 교체.
+/// 초기 로드는 BootstrapApp이 수행해 [initial]로 넘긴다.
 class ProfileStore extends ChangeNotifier {
-  ProfileStore({LocalStorage? storage}) : _storage = storage {
-    _profile = storage?.loadProfile();
-  }
+  ProfileStore({UserProfile? initial, AppStorage? storage})
+      // ignore: prefer_initializing_formals
+      : _storage = storage,
+        _profile = initial;
 
-  final LocalStorage? _storage;
+  final AppStorage? _storage;
   UserProfile? _profile;
 
   UserProfile? get profile => _profile;

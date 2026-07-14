@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import '../models/fridge_item.dart';
 
 /// 파싱 결과 한 줄 (S5에서 유저가 수정 후 확정하는 단위)
@@ -39,7 +41,7 @@ class ParseResult {
 abstract class ReceiptParser {
   Future<ParseResult> parseText(String text);
 
-  Future<ParseResult> parsePhoto();
+  Future<ParseResult> parsePhoto(Uint8List bytes, String mediaType);
 }
 
 /// 개발용 모의 파서: 붙여넣은 텍스트에서 알려진 식재료 이름을 찾아낸다.
@@ -92,7 +94,7 @@ class MockReceiptParser implements ReceiptParser {
   }
 
   @override
-  Future<ParseResult> parsePhoto() async {
+  Future<ParseResult> parsePhoto(Uint8List bytes, String mediaType) async {
     await Future<void>.delayed(_simulatedDelay);
     // 실기기 카메라 + 비전 LLM 연동 전까지는 그럴듯한 영수증 결과를 돌려준다.
     return ParseResult(

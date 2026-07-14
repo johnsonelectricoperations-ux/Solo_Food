@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/fridge_item.dart';
-import '../services/local_storage.dart';
+import '../services/app_storage.dart';
 
 /// 차감 1건: 어떤 품목을 얼마나(비율) 썼는가
 class Deduction {
@@ -14,29 +14,27 @@ class Deduction {
 }
 
 /// 앱 전체가 공유하는 냉장고 상태.
-/// 변경 시마다 기기 로컬(LocalStorage)에 저장한다. Supabase 연동 시 저장부만 교체.
+/// 변경 시마다 storage(로컬 또는 Supabase)에 저장한다.
+/// 초기 데이터 로드는 비동기라 BootstrapApp이 미리 읽어 [initial]로 넘긴다.
 class FridgeStore extends ChangeNotifier {
-  FridgeStore({List<FridgeItem>? initial, LocalStorage? storage}) : _storage = storage {
-    final saved = storage?.loadFridge();
-    if (initial != null) {
-      _items = List.of(initial);
-    } else if (saved != null) {
-      _items = List.of(saved.items);
-      naengpaCount = saved.naengpaCount;
-      discardCount = saved.discardCount;
-    } else {
-      _items = dummyFridgeItems(); // 첫 실행 데모용 — 실연동 시 빈 냉장고로 교체 예정
-    }
-  }
+  FridgeStore({
+    List<FridgeItem>? initial,
+    this.naengpaCount = 0,
+    this.discardCount = 0,
+    AppStorage? storage,
+    // 비공개 필드에는 initializing formal을 쓸 수 없다
+    // ignore: prefer_initializing_formals
+  })  : _storage = storage,
+        _items = List.of(initial ?? dummyFridgeItems());
 
-  final LocalStorage? _storage;
-  late List<FridgeItem> _items;
+  final AppStorage? _storage;
+  final List<FridgeItem> _items;
 
   /// 이번 달 냉파 성공 횟수 (킬러 기능 5 최소형)
-  int naengpaCount = 0;
+  int naengpaCount;
 
   /// 버린 재료 횟수 — 냉파 리포트의 "얼마 버렸다" 데이터 (2차에서 리포트로 노출)
-  int discardCount = 0;
+  int discardCount;
 
   List<FridgeItem> get items => List.unmodifiable(_items);
 

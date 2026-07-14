@@ -6,6 +6,7 @@ create table if not exists profiles (
   user_id uuid primary key references auth.users (id) on delete cascade,
   allergens text[] not null default '{}',
   diet_type text not null default 'normal' check (diet_type in ('normal', 'vegan', 'lowSugar', 'lowSalt')),
+  onboarding_done boolean not null default false,
   naengpa_count int not null default 0,
   discard_count int not null default 0,
   created_at timestamptz not null default now(),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../state/profile_store.dart';
 import 'onboarding_screens.dart';
@@ -64,6 +65,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('스토어 제출 단계에서 문서를 만들어 연결할 예정이에요')),
             ),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('로그아웃'),
+            subtitle: Text(
+              Supabase.instance.client.auth.currentUser?.email ?? '',
+            ),
+            onTap: () async {
+              await Supabase.instance.client.auth.signOut();
+              // 인증 게이트(main)가 로그인 화면으로 전환한다
+              if (context.mounted) {
+                Navigator.of(context).popUntil((route) => route.isFirst);
+              }
+            },
           ),
         ],
       ),

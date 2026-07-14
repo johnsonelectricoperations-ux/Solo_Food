@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../services/receipt_parser.dart';
 import '../state/fridge_store.dart';
@@ -23,6 +24,28 @@ class _ReceiptInputScreenState extends State<ReceiptInputScreen> {
   void dispose() {
     _textController.dispose();
     super.dispose();
+  }
+
+  Future<void> _capturePhoto() async {
+    final XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1600, // 비전 LLM에 충분한 해상도 — 업로드 용량·토큰 절약
+        imageQuality: 85,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('카메라를 열 수 없어요. 기기 권한을 확인해 주세요.')),
+      );
+      return;
+    }
+    if (picked == null) return; // 촬영 취소
+
+    final bytes = await picked.readAsBytes();
+    final mediaType = picked.mimeType ?? 'image/jpeg';
+    await _run(() => widget.parser.parsePhoto(bytes, mediaType));
   }
 
   Future<void> _run(Future<ParseResult> Function() parse) async {
@@ -65,7 +88,7 @@ class _ReceiptInputScreenState extends State<ReceiptInputScreen> {
           children: [
             TabBarView(
               children: [
-                _PhotoTab(onCapture: () => _run(widget.parser.parsePhoto)),
+                _PhotoTab(onCapture: _capturePhoto),
                 _PasteTab(
                   controller: _textController,
                   onSubmit: () => _run(() => widget.parser.parseText(_textController.text)),
@@ -111,7 +134,7 @@ class _PhotoTab extends StatelessWidget {
           FilledButton.icon(
             onPressed: onCapture,
             icon: const Icon(Icons.photo_camera),
-            label: const Text('영수증 찍기 (개발용 모의 데이터)'),
+            label: const Text('영수증 찍기'),
           ),
         ],
       ),
